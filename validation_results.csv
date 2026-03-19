@@ -1,0 +1,9 @@
+check_name,passed
+sales_not_empty,1
+stores_not_empty,1
+skus_not_empty,1
+positive_price,1
+units_not_null,1
+date_dtype_valid,1
+unique_store_ids,1
+unique_sku_ids,1
