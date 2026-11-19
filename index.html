@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Retail Decision Support &middot; Solomon Tarfasa Faro</title>
+<meta name="description" content="A stage-by-stage walkthrough of the Retail Decision Support System built by Solomon Tarfasa Faro: data pipeline, forecasting, risk scoring, drift monitoring and decision analytics.">
+<meta name="author" content="Solomon Tarfasa Faro">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Retail Decision Support System">
+<meta property="og:description" content="A stage-by-stage walkthrough of the Retail Decision Support System built by Solomon Tarfasa Faro: data pipeline, forecasting, risk scoring, drift monitoring and decision analytics.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230F6E7A'/%3E%3Cpath d='M8 21l5-6 4 3 7-9' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* baseline reset — the hosted page supplies what the sandbox used to inject */
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+  :root {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  button { font-family: inherit; }
+</style>
+<style>
+  /* Layout: one small card centred on the page; each click turns it up to the next stage. */
+  :root {
+    --bg: #F6F8FA;
+    --surface: #FFFFFF;
+    --surface-2: #ECF0F4;
+    --fg: #16202A;
+    --fg-muted: #5C6B7A;
+    --line: #D9E0E8;
+    --accent: #0F6E7A;
+    --on-accent: #FFFFFF;
+    --accent-soft: #E2F0F2;
+    --signal: #9A5B06;
+    --signal-soft: #FAEEDC;
+    --shadow: 0 1px 2px rgba(22,32,42,.07), 0 14px 34px rgba(22,32,42,.12);
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1318; --surface: #161F26; --surface-2: #1C262F;
+      --fg: #E5ECF2; --fg-muted: #8EA0B1; --line: #27333D;
+      --accent: #46B3C1; --on-accent: #06181B; --accent-soft: #113136;
+      --signal: #E0A34B; --signal-soft: #332513;
+      --shadow: 0 1px 2px rgba(0,0,0,.45), 0 16px 40px rgba(0,0,0,.55);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1318; --surface: #161F26; --surface-2: #1C262F;
+    --fg: #E5ECF2; --fg-muted: #8EA0B1; --line: #27333D;
+    --accent: #46B3C1; --on-accent: #06181B; --accent-soft: #113136;
+    --signal: #E0A34B; --signal-soft: #332513;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 16px 40px rgba(0,0,0,.55);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap {
+    max-width: 560px; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 38px 48px;
+    text-align: center;
+  }
+
+  .eyebrow { font-family: var(--mono); font-size: 10.5px; letter-spacing: .15em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+  h1 { font-family: var(--display); font-weight: 700; font-size: clamp(25px, 6vw, 34px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 12px; text-wrap: balance; }
+  .standfirst { font-size: 15px; color: var(--fg-muted); max-width: 44ch; margin: 0 auto 26px; }
+
+  /* ---------- the card ---------- */
+  .stage { perspective: 1400px; margin-bottom: 18px; }
+  .card {
+    position: relative;
+    display: block; width: 100%;
+    text-align: left; font: inherit; color: inherit;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 20px 20px 18px;
+    cursor: pointer;
+    transform-origin: center top;
+    transition: transform .26s cubic-bezier(.4,0,.6,1);
+    backface-visibility: hidden;
+  }
+  @media (max-width: 480px) { .card { padding: 17px 15px 16px; } }
+  .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  /* the stacked edges peeking under the card */
+  .stage::after, .stage::before {
+    content: ""; position: absolute; left: 50%; translate: -50% 0;
+    border: 1px solid var(--line); border-top: none;
+    border-radius: 0 0 12px 12px; background: var(--surface);
+    pointer-events: none;
+  }
+  .stage::after  { bottom: 12px; width: 95%; height: 8px; opacity: .8; }
+  .stage::before { bottom: 6px;  width: 90%; height: 8px; opacity: .5; }
+  .stage { position: relative; padding-bottom: 14px; }
+
+  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .num {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    background: var(--accent); color: var(--on-accent);
+    border-radius: 6px; padding: 3px 7px; letter-spacing: .04em;
+  }
+  .of { font-family: var(--mono); font-size: 10.5px; color: var(--fg-muted); letter-spacing: .1em; }
+  .pips { display: flex; gap: 4px; margin-left: auto; }
+  .pip { width: 5px; height: 5px; border-radius: 50%; background: var(--line); }
+  .pip.on { background: var(--accent); }
+
+  .card h2 { font-family: var(--display); font-weight: 500; font-size: 19px; line-height: 1.25; letter-spacing: -.015em; margin: 0 0 7px; text-wrap: balance; }
+  .card .intro { font-size: 14px; color: var(--fg-muted); margin: 0 0 12px; }
+  .card ul { margin: 0 0 13px; padding-left: 17px; }
+  .card li { font-size: 13.5px; margin-bottom: 5px; }
+  .card li::marker { color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 13px; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 4px; background: var(--surface-2); color: var(--fg-muted); border: 1px solid var(--line); }
+  .chip.sig { background: var(--signal-soft); color: var(--signal); border-color: transparent; }
+  .chip.acc { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+  .turn {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    border-top: 1px dashed var(--line); padding-top: 11px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .turn svg { flex: none; }
+
+  .links { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; padding: 8px 14px; border-radius: 7px; text-decoration: none; border: 1px solid var(--line); color: var(--fg); background: var(--surface); transition: border-color .15s, transform .15s; }
+  .btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .btn .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .75; }
+
+  footer { margin-top: 30px; font-size: 12.5px; color: var(--fg-muted); }
+  footer a { color: var(--accent); }
+  footer p { margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) { .card { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Portfolio build · Solomon Tarfasa Faro</p>
+  <h1>Retail Decision Support System</h1>
+  <p class="standfirst">Transaction data in one end; a forecast, a reorder quantity and a decision brief out the other. Click the card to turn through the eight stages.</p>
+
+  <div class="stage">
+    <button class="card" id="card" type="button" aria-live="polite"></button>
+  </div>
+
+  <div class="links">
+    <a class="btn primary" href="https://retail-decision-support-demo.streamlit.app/" target="_blank" rel="noopener"><span class="dot"></span>Open the live dashboard</a>
+    <a class="btn" href="https://github.com/Jaletarfasa/retail-decision-support-system" target="_blank" rel="noopener">Source on GitHub</a>
+  </div>
+
+  <footer><p>Built by Solomon Tarfasa Faro, Calgary &middot; <a href="https://github.com/Jaletarfasa" target="_blank" rel="noopener">github.com/Jaletarfasa</a></p></footer>
+</div>
+
+
+<script>
+(function () {
+  var S = [
+    { t:"Data pipeline and preparation",
+      i:"Extraction through to a dataset you can defend, with the lineage left intact.",
+      b:["SQL, REST API and web-scraping extraction","Profiling, cleaning, dedup, outlier handling","Validation gates that stop a bad load","Versioned datasets with audit trails"],
+      c:[["SQL",""],["SQLite",""],["pandas",""],["Git",""]] },
+    { t:"Feature engineering",
+      i:"Retail demand is seasonal, promotional and store-specific at once, so each effect is encoded apart from the others.",
+      b:["Lag and rolling windows by SKU, store, category","Calendar, seasonality and promotion indicators","Entity embeddings for high-cardinality IDs","Feature importance tracked per run"],
+      c:[["pandas",""],["NumPy",""],["scikit-learn",""]] },
+    { t:"Demand forecasting",
+      i:"Several forecasters run side by side. Accuracy is measured on held-out future periods, never a random split.",
+      b:["ARIMA and ETS as interpretable baselines","Prophet where holiday structure is strong","Boosted and deep models for harder series","Rolling-origin backtests, accuracy per horizon"],
+      c:[["ARIMA / ETS",""],["Prophet",""],["XGBoost",""],["LightGBM",""]] },
+    { t:"Risk scoring",
+      i:"A calibrated probability, a reason for it, and a threshold someone can argue with.",
+      b:["RF, XGBoost, LightGBM, HistGB on the same folds","Calibration, so a score of 0.7 means something","Thresholds set on business cost, not a default 0.5","API scoring for downstream systems"],
+      c:[["scikit-learn",""],["XGBoost",""],["FastAPI",""]] },
+    { t:"Validation and model comparison",
+      i:"A challenger replaces the champion only by beating it on temporally held-out data.",
+      b:["Temporal validation and rolling-origin backtests","Champion/challenger runs, every one tracked","Metrics, params and artefacts in a registry","Comparisons surfaced, not buried in notebooks"],
+      c:[["MLflow",""],["scikit-learn",""],["Model registry","acc"]] },
+    { t:"Drift monitoring and retraining",
+      i:"The costly failure is a model still returning plausible numbers after the data shifted underneath it.",
+      b:["PSI and KS checks on incoming features","Gates that fail a load rather than score it","Retraining triggers with an audit view","Prediction logging, so a decision can be rebuilt"],
+      c:[["PSI","sig"],["KS test","sig"],["Audit logging",""]] },
+    { t:"Decision analytics",
+      i:"A forecast changes nothing on its own. This turns it into something to do.",
+      b:["Reorder quantities from forecast and service level","Price elasticity and promotion uplift","Segmentation, CLV and churn signals","Scenario tests with uncertainty bounds"],
+      c:[["Python",""],["SQL",""],["Scenario engine","acc"]] },
+    { t:"Dashboard and handoff",
+      i:"Leads with the recommendation, then shows the working underneath it.",
+      b:["Streamlit dashboard, explainable visuals, watchlists","Decision narratives built from model output","Agent-assisted Q&A grounded in the data","Docker, CI/CD, Fabric and AWS-ready patterns"],
+      c:[["Streamlit",""],["FastAPI",""],["Docker",""],["AWS",""]] }
+  ];
+
+  var N = S.length, cur = 0, busy = false;
+  var card = document.getElementById('card');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function esc(x){ return x.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pad(n){ return (n < 9 ? '0' : '') + (n + 1); }
+
+  function face(i) {
+    var s = S[i];
+    var pips = '';
+    for (var p = 0; p < N; p++) pips += '<span class="pip' + (p <= i ? ' on' : '') + '"></span>';
+    var lis = s.b.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
+    var chips = s.c.map(function(c){ return '<span class="chip' + (c[1] ? ' ' + c[1] : '') + '">' + esc(c[0]) + '</span>'; }).join('');
+    var last = (i === N - 1);
+    return '<span class="top"><span class="num">' + pad(i) + '</span>' +
+           '<span class="of">of ' + N + '</span>' +
+           '<span class="pips">' + pips + '</span></span>' +
+           '<h2>' + esc(s.t) + '</h2>' +
+           '<p class="intro">' + esc(s.i) + '</p>' +
+           '<ul>' + lis + '</ul>' +
+           '<div class="chips">' + chips + '</div>' +
+           '<span class="turn"><span>' + (last ? 'Back to the first stage' : 'Click to turn') + '</span>' +
+           '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+           (last
+             ? '<path d="M13 8a5 5 0 1 1-1.6-3.7M12.5 2v3h-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+             : '<path d="M8 12.5V3.5M4.5 7L8 3.5L11.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>') +
+           '</svg></span>';
+  }
+
+  function show(i) { card.innerHTML = face(i); }
+
+  function turn() {
+    if (busy) return;
+    var nxt = (cur + 1) % N;
+    if (reduce) { cur = nxt; show(cur); return; }
+    busy = true;
+    card.style.transform = 'rotateX(-88deg)';
+    setTimeout(function () {
+      cur = nxt;
+      show(cur);
+      card.style.transition = 'none';
+      card.style.transform = 'rotateX(88deg)';
+      void card.offsetWidth;
+      card.style.transition = '';
+      card.style.transform = 'rotateX(0deg)';
+      setTimeout(function () { busy = false; }, 270);
+    }, 260);
+  }
+
+  card.addEventListener('click', turn);
+  show(0);
+})();
+</script>
+</body>
+</html>
